@@ -5,7 +5,7 @@ from tensorflow.keras.optimizers import Adam#for the training of the model
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from preprocessing import preprocessing
+# from preprocessing import preprocessing
 
 twoexp_nodes_number_layer_1 = 7
 twoexp_nodes_number_layer_2 = 10
