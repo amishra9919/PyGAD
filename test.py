@@ -8,14 +8,10 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 import random
 from targets_plot_generator import generate_plot, image_addresses
-# ---------------------------
-# Data Preprocessing
-# ---------------------------
 
 def preprocessing():
     pass
 
-# Load and preprocess data
 df = pd.read_csv("TSLA_data.csv")
 print(df.head())
 df.set_index('DCP', inplace=True) 
@@ -35,20 +31,15 @@ def build_data_sequences(data_X, data_Y, timesteps):
         y.append(data_Y[i + timesteps])
     return np.array(X), np.array(y)
 
-timesteps = 10  # Number of days to look back for each sequence
+timesteps = 10 
 X, y = build_data_sequences(features_scaled, target_scaled, timesteps)
 print(f"Shape of X: {X.shape}, Shape of y: {y.shape}")
 
-# Split data into training and testing
 X_train, X_val, y_train, y_val = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
-# ---------------------------
-# Genetic Algorithm Setup
-# ---------------------------
-
-# Hyperparameter space
+##GA setup and hyperparameter space setup
 hyperparameter_space = {
     "units_layer1": {"type": "int", "min": 32, "max": 256},
     "units_layer2": {"type": "int", "min": 32, "max": 256},
@@ -57,15 +48,13 @@ hyperparameter_space = {
     "learning_rate": {"type": "float", "min": 1e-4, "max": 1e-2},
     "batch_size": {"type": "int", "choices": [16, 32, 64]}
 }
-
-# GA Parameters
+##ga param
 population_size = 10
 generations = 20
 mutation_rate = 0.2
 crossover_rate = 0.8
-elitism = True  # Whether to keep the best individual
+elitism = True 
 
-# Define chromosome as a dictionary of hyperparameters
 def create_individual():
     individual = {}
     for param, param_info in hyperparameter_space.items():
@@ -81,9 +70,8 @@ def create_individual():
 def initialize_population(size):
     return [create_individual() for _ in range(size)]
 
-# Define the fitness function
 def fitness(individual):
-    # Build and compile the model based on individual hyperparameters
+    #compile based on indivisual hyperparam
     units1 = individual["units_layer1"]
     units2 = individual["units_layer2"]
     units3 = individual["units_layer3"]
@@ -91,10 +79,9 @@ def fitness(individual):
     learning_rate = individual["learning_rate"]
     batch_size = individual["batch_size"]
     
-    # Clear previous models from memory
+    ####clearing previous module for the better memory
     tf.keras.backend.clear_session()
     
-    # Build the model
     model = Sequential([
         LSTM(units=units1, input_shape=(X_train.shape[1], X_train.shape[2]), return_sequences=True),
         LSTM(units=units2, return_sequences=True),
@@ -108,37 +95,32 @@ def fitness(individual):
     
     model.compile(optimizer=optimizer, loss='mse')
     
-    # Early stopping to prevent long training times
     early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
     
-    # Train the model
     history = model.fit(
         X_train, y_train,
-        epochs=30,  # Reduced epochs for speed; adjust as needed
+        epochs=30,
         batch_size=batch_size,
         validation_data=(X_val, y_val),
         callbacks=[early_stop],
-        verbose=0  # Suppress output for cleaner logs
+        verbose=0
     )
     
-    # Evaluate the model on validation data
     val_loss = model.evaluate(X_val, y_val, verbose=0)
     
-    # Since GA maximizes fitness, invert the loss
+    print("INvert Loss")
     fitness_score = -val_loss
     print(f"Evaluated Individual: {individual}, Validation Loss: {val_loss}, Fitness: {fitness_score}")
     return fitness_score
 
-# Selection (Tournament Selection)
 def selection(population, fitness_scores, k=3):
     selected = []
-    for _ in range(2):  # Select two parents
+    for _ in range(2):  
         aspirants = random.sample(list(zip(population, fitness_scores)), k)
         aspirants = sorted(aspirants, key=lambda x: x[1], reverse=True)
         selected.append(aspirants[0][0])
     return selected
 
-# Crossover (Uniform Crossover)
 def crossover(parent1, parent2):
     child1, child2 = {}, {}
     for param in hyperparameter_space.keys():
@@ -150,7 +132,6 @@ def crossover(parent1, parent2):
             child2[param] = parent1[param]
     return child1, child2
 
-# Mutation
 def mutate(individual):
     for param, param_info in hyperparameter_space.items():
         if random.random() < mutation_rate:
@@ -163,76 +144,49 @@ def mutate(individual):
                 individual[param] = random.uniform(param_info["min"], param_info["max"])
     return individual
 
-# ---------------------------
-# Genetic Algorithm Execution
-# ---------------------------
 
-# Initialize population
+print("GA Execution")
 population = initialize_population(population_size)
 
 for generation in range(generations):
     print(f"\n=== Generation {generation + 1} ===")
     
-    # Evaluate fitness for each individual
     fitness_scores = [fitness(ind) for ind in population]
     
-    # Sort population based on fitness
     population_fitness = list(zip(population, fitness_scores))
     population_fitness.sort(key=lambda x: x[1], reverse=True)
     
-    # Display best fitness in current generation
     best_individual, best_fitness = population_fitness[0]
     print(f"Best Fitness: {best_fitness} with hyperparameters: {best_individual}")
     
-    # Elitism: carry forward the best individual to the next generation
     if elitism:
         new_population = [best_individual]
     else:
         new_population = []
     
-    # Generate new individuals until the new population is full
     while len(new_population) < population_size:
-        # Selection
         parent1, parent2 = selection(population, fitness_scores)
         
-        # Crossover
         if random.random() < crossover_rate:
             child1, child2 = crossover(parent1, parent2)
         else:
             child1, child2 = parent1.copy(), parent2.copy()
         
-        # Mutation
         child1 = mutate(child1)
         child2 = mutate(child2)
         
         new_population.extend([child1, child2])
     
-    # Ensure the population size remains constant
     population = new_population[:population_size]
 
-# ---------------------------
-# Final Evaluation
-# ---------------------------
-
-# After all generations, evaluate and select the best individual
 final_fitness_scores = [fitness(ind) for ind in population]
 final_population_fitness = list(zip(population, final_fitness_scores))
 final_population_fitness.sort(key=lambda x: x[1], reverse=True)
 
 best_individual, best_fitness = final_population_fitness[0]
-print(f"\n=== Best Hyperparameters Found ===")
+print(f"\nBest Hyperparameters Found ")
 print(f"Hyperparameters: {best_individual}")
-print(f"Validation Fitness (Negative Loss): {best_fitness}")
-
-# Optional: Retrain the model with the best hyperparameters on the entire training set
-# and evaluate on the test set if you have one.
-
-# ---------------------------
-# Making Predictions with the Best Model
-# ---------------------------
-
-# Assuming you have a separate test set, you can build and train the final model here
-# For demonstration, we'll use the existing X_val and y_val as test data
+print(f"Validation Fitness -Negative Loss: {best_fitness}")
 
 def build_final_model(best_individual):
     units1 = best_individual["units_layer1"]
@@ -269,32 +223,24 @@ def build_final_model(best_individual):
     
     return model
 
-# Build and train the final model
 final_model = build_final_model(best_individual)
 
-# Evaluate on validation data
 final_val_loss = final_model.evaluate(X_val, y_val, verbose=0)
 print(f"Final Validation Loss: {final_val_loss}")
 
-# At the end of the script, after GA optimization:
 final_model = build_final_model(best_individual)
 
-# Make predictions
 predictions = final_model.predict(X_val)
 predictions = scaler_target.inverse_transform(predictions)
 y_true = scaler_target.inverse_transform(y_val)
 
-# Use dates from the original dataset for visualization
-dates = df.index[-len(predictions):]  # Assuming the last 'len(predictions)' dates match
+dates = df.index[-len(predictions):]  
 
-# Specify the target variable's name for plotting (e.g., "Stock Price")
 target_name = "Stock Price"
 
-# Generate plots
 plot_results = generate_plot(predictions, y_true, dates, target_name)
 
-# Display results
-print("\n=== Plot Results ===")
+print("Plot")
 for plot_type, metrics in plot_results.items():
     if isinstance(metrics, dict):
         print(f"{plot_type}: {metrics}")
