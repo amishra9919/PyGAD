@@ -5,7 +5,7 @@ from tensorflow.keras.optimizers import Adam#for the training of the model
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-# from preprocessing import preprocessing
+from preprocessing import preprocessing
 
 twoexp_nodes_number_layer_1 = 7
 twoexp_nodes_number_layer_2 = 10
@@ -37,7 +37,7 @@ def building_data_sequences(data_X,data_Y, timesteps): #timesteps means how many
 
 def custom_loss_function(attenuated_padding_value):
     print("inside the custom loss sequence")
-    
+
     def padding_loss_function(y_true, y_pred):
         print("inside the padding loss sequence")
 
